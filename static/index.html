@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LipSync AI – Tạo Video Lip Sync Tiếng Việt</title>
+  <meta name="description" content="Upload video và nhập text tiếng Việt – AI tự động tạo lip sync chuyên nghiệp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- Background -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🎬</span>
+        <span class="logo-text">LipSync <span class="gradient-text">AI</span></span>
+      </div>
+      <div id="system-status" class="status-badge status-checking">
+        <span class="status-dot"></span>
+        <span id="status-text">Đang kiểm tra...</span>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1 class="hero-title">
+        Upload video → Nhập text →<br />
+        <span class="gradient-text">AI tự lip sync tiếng Việt</span>
+      </h1>
+      <p class="hero-subtitle">
+        Video ngắn cũng được – AI tự động loop video đến khi đọc hết text
+      </p>
+    </section>
+
+    <!-- Main Card -->
+    <main class="main-card">
+
+      <!-- ===== TABS ===== -->
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-btn-lipsync" onclick="switchTab('lipsync')">
+          <span>🎬</span> Lip Sync
+        </button>
+        <button class="tab-btn" id="tab-btn-tts" onclick="switchTab('tts')">
+          <span>🎙️</span> TTS Gemini
+        </button>
+      </div>
+
+      <!-- ===== TAB: LIP SYNC ===== -->
+      <div id="tab-lipsync" class="tab-content">
+        <div class="steps-grid">
+
+          <!-- Step 1: Upload Video -->
+          <div class="step-card" id="step-video">
+            <div class="step-header">
+              <div class="step-number">1</div>
+              <h2 class="step-title">Video gốc</h2>
+            </div>
+            <div
+              class="upload-zone"
+              id="video-drop-zone"
+              onclick="document.getElementById('video-input').click()"
+            >
+              <input type="file" id="video-input" accept="video/*" hidden />
+              <div class="upload-icon">🎥</div>
+              <p class="upload-label">Click hoặc kéo thả video vào đây</p>
+              <p class="upload-hint">MP4, MOV, AVI – Mọi độ dài</p>
+            </div>
+            <div id="video-preview-wrapper" class="preview-wrapper hidden">
+              <video id="video-preview" controls></video>
+              <div class="video-meta" id="video-meta"></div>
+            </div>
+          </div>
+
+          <!-- Step 2: Text -->
+          <div class="step-card" id="step-text">
+            <div class="step-header">
+              <div class="step-number">2</div>
+              <h2 class="step-title">Script tiếng Việt</h2>
+            </div>
+            <textarea
+              id="text-input"
+              class="text-area"
+              placeholder="Nhập text bạn muốn người mẫu đọc...&#10;&#10;Ví dụ: Bạn có đang tìm sản phẩm dưỡng da hiệu quả? Serum dưỡng trắng của chúng tôi giúp da sáng mịn chỉ sau 7 ngày..."
+              rows="8"
+            ></textarea>
+            <div class="text-meta">
+              <span id="char-count">0 ký tự</span>
+              <span id="duration-estimate" class="duration-badge">~0s video</span>
+            </div>
+
+            <!-- TTS Engine -->
+            <div class="ls-voice-section">
+
+              <!-- Engine Selector -->
+              <div class="tts-engine-selector">
+                <button class="engine-btn" id="engine-btn-edge" onclick="selectEngine('edge')" type="button">
+                  <span class="engine-icon">🌐</span>
+                  <span class="engine-name">Edge TTS</span>
+                  <span class="engine-badge free">FREE ∞</span>
+                </button>
+                <button class="engine-btn" id="engine-btn-gemini" onclick="selectEngine('gemini')" type="button">
+                  <span class="engine-icon">✨</span>
+                  <span class="engine-name">Gemini TTS</span>
+                  <span class="engine-badge quota">10/ngày</span>
+                </button>
+                <button class="engine-btn" id="engine-btn-gtts" onclick="selectEngine('gtts')" type="button">
+                  <span class="engine-icon">💬</span>
+                  <span class="engine-name">gTTS</span>
+                  <span class="engine-badge free">FREE</span>
+                </button>
+              </div>
+
+              <!-- Panel: Edge TTS -->
+              <div id="panel-edge" class="engine-panel">
+                <div class="ls-voice-row">
+                  <div class="ls-voice-field">
+                    <label class="ls-voice-label">🌐 Giọng đọc (Microsoft)</label>
+                    <select id="edge-voice" class="voice-select" onchange="updateLsTtsMode()">
+                      <option value="vi-VN-HoaiMyNeural">Hoài My – Nữ, rõ ràng, tự nhiên</option>
+                      <option value="vi-VN-NamMinhNeural">Nam Minh – Nam, ấm, chuyên nghiệp</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="ls-tts-mode-label ls-tts-edge">✅ Edge TTS – Free, không giới hạn, giọng Việt rất rõ</p>
+              </div>
+
+              <!-- Panel: Gemini TTS -->
+              <div id="panel-gemini" class="engine-panel hidden">
+                <div class="ls-voice-row">
+                  <div class="ls-voice-field">
+                    <label class="ls-voice-label">🔑 Gemini API Key
+                      <small>(lấy tại aistudio.google.com)</small>
+                    </label>
+                    <div class="api-key-wrapper">
+                      <input type="password" id="ls-api-key"
+                        placeholder="AIza... "
+                        oninput="saveLsApiKey(); updateLsTtsMode()"
+                        class="api-key-input" />
+                      <button class="key-toggle-btn" onclick="toggleLsKeyVisibility()" type="button">👁️</button>
+                    </div>
+                  </div>
+                  <div class="ls-voice-field">
+                    <label class="ls-voice-label">🎭 Giọng đọc Gemini</label>
+                    <select id="ls-voice" class="voice-select" onchange="updateLsTtsMode(); clearLsVoicePreview()">
+                      <optgroup label="♀️ Giọng nữ">
+                        <option value="Kore">Kore – Mạnh mẽ, chắc chắn</option>
+                        <option value="Aoede">Aoede – Thoải mái, tự nhiên</option>
+                        <option value="Zephyr">Zephyr – Sáng, rõ ràng</option>
+                        <option value="Leda">Leda – Trẻ trung, thân thiện</option>
+                      </optgroup>
+                      <optgroup label="♂️ Giọng nam">
+                        <option value="Puck">Puck – Vui vẻ, sôi nổi</option>
+                        <option value="Charon">Charon – Chuyên nghiệp, điềm tĩnh</option>
+                        <option value="Fenrir">Fenrir – Đam mê, năng lượng</option>
+                        <option value="Orus">Orus – Vững vàng, chắc chắn</option>
+                      </optgroup>
+                    </select>
+                    <div class="voice-preview-row">
+                      <button id="ls-preview-btn" class="preview-voice-btn" onclick="previewLsVoice()" type="button">
+                        🔊 Nghe thử giọng
+                      </button>
+                    </div>
+                    <div id="ls-voice-preview-player" class="voice-preview-player hidden">
+                      <audio id="ls-preview-audio" controls class="preview-audio-el"></audio>
+                    </div>
+                  </div>
+                </div>
+                <p id="ls-tts-mode" class="ls-tts-mode-label">ℹ️ Nhập API key để dùng Gemini TTS</p>
+              </div>
+
+              <!-- Panel: gTTS -->
+              <div id="panel-gtts" class="engine-panel hidden">
+                <p class="ls-tts-mode-label">ℹ️ gTTS sử dụng Google Translate TTS – free nhưng giọng có thể không tự nhiên</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Lip Sync Engine Selector -->
+        <div class="action-section ls-engine-section">
+          <div class="ls-engine-label">
+            <span>👄</span> Lip Sync Engine
+          </div>
+          <div class="tts-engine-selector ls-engine-selector">
+            <button class="engine-btn active" id="ls-engine-btn-wav2lip"
+                    onclick="selectLsEngine('wav2lip')" type="button">
+              <span class="engine-icon">⚡</span>
+              <span class="engine-name">Wav2Lip</span>
+              <span class="engine-badge free">Nhanh</span>
+            </button>
+            <button class="engine-btn" id="ls-engine-btn-videoretalking"
+                    onclick="selectLsEngine('videoretalking')" type="button">
+              <span class="engine-icon">✨</span>
+              <span class="engine-name">VideoReTalking</span>
+              <span class="engine-badge" id="vrt-status-badge">Kiểm tra...</span>
+            </button>
+          </div>
+          <p id="ls-engine-note" class="ls-tts-mode-label">
+            ⚡ Wav2Lip – Nhanh, ổn định, phù hợp cho mọi video
+          </p>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="action-section">
+          <button id="generate-btn" class="generate-btn" onclick="startGenerate()">
+            <span class="btn-icon">✨</span>
+            <span class="btn-text">Tạo Lip Sync</span>
+          </button>
+          <p class="action-note">GPU mode: ~1-3 phút với video 10s</p>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progress-section" class="progress-section hidden">
+          <div class="progress-header">
+            <span class="progress-label">Đang xử lý...</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+          <div class="steps-status">
+            <div class="step-status" id="step-tts">
+              <span class="step-icon">⏳</span>
+              <span>Tạo giọng đọc tiếng Việt</span>
+            </div>
+            <div class="step-status" id="step-loop">
+              <span class="step-icon">⏳</span>
+              <span>Loop video</span>
+            </div>
+            <div class="step-status" id="step-lipsync">
+              <span class="step-icon">⏳</span>
+              <span>Lip sync (GPU)</span>
+            </div>
+          </div>
+          <p id="current-step" class="current-step">Đang chuẩn bị...</p>
+        </div>
+
+        <!-- Result Section -->
+        <div id="result-section" class="result-section hidden">
+          <div class="result-header">
+            <span class="result-icon">🎉</span>
+            <h3>Lip Sync hoàn tất!</h3>
+          </div>
+          <video id="result-video" controls class="result-video"></video>
+          <div class="result-actions">
+            <button id="download-btn" class="download-btn" onclick="downloadResult()">
+              ⬇️ Download Video
+            </button>
+            <button class="reset-btn" onclick="resetApp()">
+              🔄 Tạo video mới
+            </button>
+          </div>
+        </div>
+
+        <!-- Error Section -->
+        <div id="error-section" class="error-section hidden">
+          <span class="error-icon">❌</span>
+          <p id="error-message">Đã xảy ra lỗi</p>
+          <button class="reset-btn" onclick="resetApp()">Thử lại</button>
+        </div>
+      </div>
+
+      <!-- ===== TAB: TTS GEMINI ===== -->
+      <div id="tab-tts" class="tab-content hidden">
+
+        <div class="tts-config-grid">
+          <!-- API Key -->
+          <div class="tts-field">
+            <label class="tts-label">🔑 Gemini API Key</label>
+            <div class="api-key-wrapper">
+              <input
+                type="password"
+                id="tts-api-key"
+                class="api-key-input"
+                placeholder="AIzaSy..."
+                autocomplete="off"
+              />
+              <button class="eye-btn" onclick="toggleKeyVisibility()" title="Hiện/ẩn key">👁️</button>
+            </div>
+            <p class="tts-hint">
+              Lấy miễn phí tại
+              <a href="https://aistudio.google.com/apikey" target="_blank" class="tts-link">aistudio.google.com/apikey</a>
+            </p>
+          </div>
+
+          <!-- Voice -->
+          <div class="tts-field">
+            <label class="tts-label">🎭 Giọng đọc</label>
+            <select id="tts-voice" class="voice-select" onchange="clearVoicePreview()">
+              <optgroup label="♀️ Giọng nữ">
+                <option value="Kore">Kore – Mạnh mẽ, chắc chắn</option>
+                <option value="Aoede">Aoede – Thoải mái, tự nhiên</option>
+                <option value="Zephyr">Zephyr – Sáng, rõ ràng</option>
+                <option value="Leda">Leda – Trẻ trung, thân thiện</option>
+              </optgroup>
+              <optgroup label="♂️ Giọng nam">
+                <option value="Puck">Puck – Vui vẻ, sôi nổi</option>
+                <option value="Charon">Charon – Chuyên nghiệp, điềm tĩnh</option>
+                <option value="Fenrir">Fenrir – Đam mê, năng lượng</option>
+                <option value="Orus">Orus – Vững vàng, chắc chắn</option>
+              </optgroup>
+              <optgroup label="⚖️ Trung tính">
+                <option value="Achird">Achird</option>
+                <option value="Algenib">Algenib</option>
+                <option value="Alnilam">Alnilam</option>
+              </optgroup>
+            </select>
+
+            <!-- Preview row -->
+            <div class="voice-preview-row">
+              <button id="preview-voice-btn" class="preview-voice-btn" onclick="previewVoice()">
+                🔊 Nghe thử giọng
+              </button>
+              <span id="preview-voice-name" class="preview-voice-label hidden"></span>
+            </div>
+
+            <!-- Mini audio player -->
+            <div id="voice-preview-player" class="voice-preview-player hidden">
+              <audio id="preview-audio" controls class="preview-audio-el"></audio>
+            </div>
+          </div>
+        </div>
+
+        <!-- Text Input -->
+        <div class="tts-field" style="margin-top: 20px;">
+          <label class="tts-label">📝 Nội dung cần đọc</label>
+          <textarea
+            id="tts-text"
+            class="text-area"
+            rows="7"
+            placeholder="Nhập text bạn muốn chuyển thành giọng nói...&#10;&#10;Ví dụ: Xin chào, tôi là trợ lý AI. Hôm nay chúng ta sẽ cùng khám phá..."
+          ></textarea>
+          <div class="text-meta">
+            <span id="tts-char-count">0 ký tự</span>
+            <span id="tts-duration-est" class="duration-badge">~0s</span>
+          </div>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="action-section" style="margin-top: 24px;">
+          <button id="tts-btn" class="generate-btn tts-generate-btn" onclick="generateTTS()">
+            <span class="btn-icon">🎙️</span>
+            <span class="btn-text">Tạo giọng đọc</span>
+          </button>
+          <p class="action-note">Gemini 2.5 Flash TTS · Tiếng Việt · ~3-5 giây</p>
+        </div>
+
+        <!-- TTS Result -->
+        <div id="tts-result" class="tts-result hidden">
+          <div class="tts-result-header">
+            <span>✅</span>
+            <h3>Giọng đọc hoàn tất!</h3>
+            <span class="tts-voice-badge" id="tts-result-voice">Kore</span>
+          </div>
+          <audio id="tts-audio" controls class="tts-audio-player"></audio>
+          <div class="result-actions" style="margin-top: 16px;">
+            <button class="download-btn" onclick="downloadTTS()">⬇️ Download WAV</button>
+            <button class="reset-btn" onclick="resetTTS()">🔄 Tạo lại</button>
+          </div>
+        </div>
+
+        <!-- TTS Error -->
+        <div id="tts-error" class="error-section hidden">
+          <span class="error-icon">❌</span>
+          <p id="tts-error-msg">Đã xảy ra lỗi</p>
+          <button class="reset-btn" onclick="resetTTS()">Thử lại</button>
+        </div>
+
+      </div>
+      <!-- end tab-tts -->
+
+    </main>
+
+    <!-- How it works -->
+    <section class="how-it-works">
+      <h2 class="section-title">Cách hoạt động</h2>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-icon">📹</div>
+          <div class="flow-label">Upload video gốc</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">🎙️</div>
+          <div class="flow-label">AI tạo giọng Việt</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">🔄</div>
+          <div class="flow-label">Tự động loop video</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">👄</div>
+          <div class="flow-label">Lip sync</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-icon">✅</div>
+          <div class="flow-label">Download video</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
