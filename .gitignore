@@ -59,6 +59,8 @@ wav2lip/
 video_retalking/
 codeformer_repo/
 gfpgan/
+checkpoints_v2/
+voice_models/
 
 # =============================================
 # Media files (video, audio tạm thời)

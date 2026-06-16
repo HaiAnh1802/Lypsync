@@ -117,6 +117,11 @@
                   <span class="engine-name">gTTS</span>
                   <span class="engine-badge free">FREE</span>
                 </button>
+                <button class="engine-btn" id="engine-btn-voice_clone" onclick="selectEngine('voice_clone')" type="button">
+                  <span class="engine-icon">🎤</span>
+                  <span class="engine-name">Voice Clone</span>
+                  <span class="engine-badge" id="vc-status-badge">Kiểm tra...</span>
+                </button>
               </div>
 
               <!-- Panel: Edge TTS -->
@@ -180,6 +185,29 @@
               <!-- Panel: gTTS -->
               <div id="panel-gtts" class="engine-panel hidden">
                 <p class="ls-tts-mode-label">ℹ️ gTTS sử dụng Google Translate TTS – free nhưng giọng có thể không tự nhiên</p>
+              </div>
+
+              <!-- Panel: Voice Clone -->
+              <div id="panel-voice_clone" class="engine-panel hidden">
+                <div class="vc-upload-section">
+                  <label class="ls-voice-label">🎵 File audio mẫu giọng nói</label>
+                  <div
+                    class="vc-drop-zone"
+                    id="vc-drop-zone"
+                    onclick="document.getElementById('voice-ref-input').click()"
+                  >
+                    <input type="file" id="voice-ref-input" accept="audio/*" hidden />
+                    <div class="vc-upload-icon">🎙️</div>
+                    <p class="upload-label">Click hoặc kéo thả file audio vào đây</p>
+                    <p class="upload-hint">WAV, MP3, M4A – 3 đến 30 giây, giọng nói rõ, không có nhạc nền</p>
+                  </div>
+                  <div id="vc-preview-wrapper" class="vc-preview-wrapper hidden">
+                    <audio id="vc-preview-audio" controls class="preview-audio-el"></audio>
+                    <p id="vc-file-name" class="vc-file-name"></p>
+                    <button class="reset-btn" onclick="resetVoiceRef()" type="button">✕ Đổi file</button>
+                  </div>
+                </div>
+                <p id="vc-status-msg" class="ls-tts-mode-label">⏳ Đang kiểm tra F5-TTS...</p>
               </div>
 
             </div>
@@ -273,89 +301,154 @@
       <!-- ===== TAB: TTS GEMINI ===== -->
       <div id="tab-tts" class="tab-content hidden">
 
-        <div class="tts-config-grid">
-          <!-- API Key -->
-          <div class="tts-field">
-            <label class="tts-label">🔑 Gemini API Key</label>
-            <div class="api-key-wrapper">
-              <input
-                type="password"
-                id="tts-api-key"
-                class="api-key-input"
-                placeholder="AIzaSy..."
-                autocomplete="off"
-              />
-              <button class="eye-btn" onclick="toggleKeyVisibility()" title="Hiện/ẩn key">👁️</button>
-            </div>
-            <p class="tts-hint">
-              Lấy miễn phí tại
-              <a href="https://aistudio.google.com/apikey" target="_blank" class="tts-link">aistudio.google.com/apikey</a>
-            </p>
-          </div>
-
-          <!-- Voice -->
-          <div class="tts-field">
-            <label class="tts-label">🎭 Giọng đọc</label>
-            <select id="tts-voice" class="voice-select" onchange="clearVoicePreview()">
-              <optgroup label="♀️ Giọng nữ">
-                <option value="Kore">Kore – Mạnh mẽ, chắc chắn</option>
-                <option value="Aoede">Aoede – Thoải mái, tự nhiên</option>
-                <option value="Zephyr">Zephyr – Sáng, rõ ràng</option>
-                <option value="Leda">Leda – Trẻ trung, thân thiện</option>
-              </optgroup>
-              <optgroup label="♂️ Giọng nam">
-                <option value="Puck">Puck – Vui vẻ, sôi nổi</option>
-                <option value="Charon">Charon – Chuyên nghiệp, điềm tĩnh</option>
-                <option value="Fenrir">Fenrir – Đam mê, năng lượng</option>
-                <option value="Orus">Orus – Vững vàng, chắc chắn</option>
-              </optgroup>
-              <optgroup label="⚖️ Trung tính">
-                <option value="Achird">Achird</option>
-                <option value="Algenib">Algenib</option>
-                <option value="Alnilam">Alnilam</option>
-              </optgroup>
-            </select>
-
-            <!-- Preview row -->
-            <div class="voice-preview-row">
-              <button id="preview-voice-btn" class="preview-voice-btn" onclick="previewVoice()">
-                🔊 Nghe thử giọng
-              </button>
-              <span id="preview-voice-name" class="preview-voice-label hidden"></span>
-            </div>
-
-            <!-- Mini audio player -->
-            <div id="voice-preview-player" class="voice-preview-player hidden">
-              <audio id="preview-audio" controls class="preview-audio-el"></audio>
-            </div>
-          </div>
-        </div>
-
-        <!-- Text Input -->
-        <div class="tts-field" style="margin-top: 20px;">
-          <label class="tts-label">📝 Nội dung cần đọc</label>
-          <textarea
-            id="tts-text"
-            class="text-area"
-            rows="7"
-            placeholder="Nhập text bạn muốn chuyển thành giọng nói...&#10;&#10;Ví dụ: Xin chào, tôi là trợ lý AI. Hôm nay chúng ta sẽ cùng khám phá..."
-          ></textarea>
-          <div class="text-meta">
-            <span id="tts-char-count">0 ký tự</span>
-            <span id="tts-duration-est" class="duration-badge">~0s</span>
-          </div>
-        </div>
-
-        <!-- Generate Button -->
-        <div class="action-section" style="margin-top: 24px;">
-          <button id="tts-btn" class="generate-btn tts-generate-btn" onclick="generateTTS()">
-            <span class="btn-icon">🎙️</span>
-            <span class="btn-text">Tạo giọng đọc</span>
+        <!-- TTS Mode Selector -->
+        <div class="tts-mode-selector">
+          <button class="tts-mode-btn active" id="tts-mode-btn-gemini" onclick="selectTtsMode('gemini')" type="button">
+            <span class="engine-icon">✨</span>
+            <span>Gemini TTS</span>
           </button>
-          <p class="action-note">Gemini 2.5 Flash TTS · Tiếng Việt · ~3-5 giây</p>
+          <button class="tts-mode-btn" id="tts-mode-btn-voice_clone" onclick="selectTtsMode('voice_clone')" type="button">
+            <span class="engine-icon">🎤</span>
+            <span>Voice Clone</span>
+            <span class="engine-badge" id="tts-vc-badge">Kiểm tra...</span>
+          </button>
         </div>
 
-        <!-- TTS Result -->
+        <!-- ===== PANEL: GEMINI TTS ===== -->
+        <div id="tts-panel-gemini">
+          <div class="tts-config-grid">
+            <!-- API Key -->
+            <div class="tts-field">
+              <label class="tts-label">🔑 Gemini API Key</label>
+              <div class="api-key-wrapper">
+                <input
+                  type="password"
+                  id="tts-api-key"
+                  class="api-key-input"
+                  placeholder="AIzaSy..."
+                  autocomplete="off"
+                />
+                <button class="eye-btn" onclick="toggleKeyVisibility()" title="Hiện/ẩn key">👁️</button>
+              </div>
+              <p class="tts-hint">
+                Lấy miễn phí tại
+                <a href="https://aistudio.google.com/apikey" target="_blank" class="tts-link">aistudio.google.com/apikey</a>
+              </p>
+            </div>
+
+            <!-- Voice -->
+            <div class="tts-field">
+              <label class="tts-label">🎭 Giọng đọc</label>
+              <select id="tts-voice" class="voice-select" onchange="clearVoicePreview()">
+                <optgroup label="♀️ Giọng nữ">
+                  <option value="Kore">Kore – Mạnh mẽ, chắc chắn</option>
+                  <option value="Aoede">Aoede – Thoải mái, tự nhiên</option>
+                  <option value="Zephyr">Zephyr – Sáng, rõ ràng</option>
+                  <option value="Leda">Leda – Trẻ trung, thân thiện</option>
+                </optgroup>
+                <optgroup label="♂️ Giọng nam">
+                  <option value="Puck">Puck – Vui vẻ, sôi nổi</option>
+                  <option value="Charon">Charon – Chuyên nghiệp, điềm tĩnh</option>
+                  <option value="Fenrir">Fenrir – Đam mê, năng lượng</option>
+                  <option value="Orus">Orus – Vững vàng, chắc chắn</option>
+                </optgroup>
+                <optgroup label="⚖️ Trung tính">
+                  <option value="Achird">Achird</option>
+                  <option value="Algenib">Algenib</option>
+                  <option value="Alnilam">Alnilam</option>
+                </optgroup>
+              </select>
+
+              <!-- Preview row -->
+              <div class="voice-preview-row">
+                <button id="preview-voice-btn" class="preview-voice-btn" onclick="previewVoice()">
+                  🔊 Nghe thử giọng
+                </button>
+                <span id="preview-voice-name" class="preview-voice-label hidden"></span>
+              </div>
+
+              <!-- Mini audio player -->
+              <div id="voice-preview-player" class="voice-preview-player hidden">
+                <audio id="preview-audio" controls class="preview-audio-el"></audio>
+              </div>
+            </div>
+          </div>
+
+          <!-- Text Input -->
+          <div class="tts-field" style="margin-top: 20px;">
+            <label class="tts-label">📝 Nội dung cần đọc</label>
+            <textarea
+              id="tts-text"
+              class="text-area"
+              rows="7"
+              placeholder="Nhập text bạn muốn chuyển thành giọng nói...&#10;&#10;Ví dụ: Xin chào, tôi là trợ lý AI. Hôm nay chúng ta sẽ cùng khám phá..."
+            ></textarea>
+            <div class="text-meta">
+              <span id="tts-char-count">0 ký tự</span>
+              <span id="tts-duration-est" class="duration-badge">~0s</span>
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <div class="action-section" style="margin-top: 24px;">
+            <button id="tts-btn" class="generate-btn tts-generate-btn" onclick="generateTTS()">
+              <span class="btn-icon">🎙️</span>
+              <span class="btn-text">Tạo giọng đọc</span>
+            </button>
+            <p class="action-note">Gemini 2.5 Flash TTS · Tiếng Việt · ~3-5 giây</p>
+          </div>
+        </div>
+
+        <!-- ===== PANEL: VOICE CLONE TTS ===== -->
+        <div id="tts-panel-voice_clone" class="hidden">
+
+          <!-- Upload audio mẫu -->
+          <div class="tts-field" style="margin-bottom: 16px;">
+            <label class="tts-label">🎵 File audio mẫu giọng nói</label>
+            <div
+              class="vc-drop-zone"
+              id="tts-vc-drop-zone"
+              onclick="document.getElementById('tts-voice-ref-input').click()"
+            >
+              <input type="file" id="tts-voice-ref-input" accept="audio/*" hidden />
+              <div class="vc-upload-icon">🎙️</div>
+              <p class="upload-label">Click hoặc kéo thả file audio vào đây</p>
+              <p class="upload-hint">WAV, MP3, M4A – 3 đến 30 giây, giọng nói rõ, không có nhạc nền</p>
+            </div>
+            <div id="tts-vc-preview-wrapper" class="vc-preview-wrapper hidden">
+              <audio id="tts-vc-preview-audio" controls class="preview-audio-el"></audio>
+              <p id="tts-vc-file-name" class="vc-file-name"></p>
+              <button class="reset-btn" onclick="resetTtsVoiceRef()" type="button">✕ Đổi file</button>
+            </div>
+            <p id="tts-vc-status" class="ls-tts-mode-label">⏳ Đang kiểm tra F5-TTS...</p>
+          </div>
+
+          <!-- Text Input -->
+          <div class="tts-field">
+            <label class="tts-label">📝 Nội dung cần đọc</label>
+            <textarea
+              id="tts-vc-text"
+              class="text-area"
+              rows="7"
+              placeholder="Nhập text bạn muốn đọc theo giọng mẫu...&#10;&#10;Ví dụ: Xin chào, đây là giọng đọc được clone từ file mẫu của bạn..."
+            ></textarea>
+            <div class="text-meta">
+              <span id="tts-vc-char-count">0 ký tự</span>
+              <span id="tts-vc-duration-est" class="duration-badge">~0s</span>
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <div class="action-section" style="margin-top: 24px;">
+            <button id="tts-vc-btn" class="generate-btn" style="background: linear-gradient(135deg, #8b5cf6, #ec4899); box-shadow: 0 4px 24px rgba(139,92,246,0.4);" onclick="generateTtsVoiceClone()">
+              <span class="btn-icon">🎤</span>
+              <span class="btn-text">Clone & Tạo giọng đọc</span>
+            </button>
+            <p class="action-note">F5-TTS Vietnamese · Zero-shot voice cloning · ~5-15 giây</p>
+          </div>
+        </div>
+
+        <!-- TTS Result (dùng chung cho cả 2 mode) -->
         <div id="tts-result" class="tts-result hidden">
           <div class="tts-result-header">
             <span>✅</span>
@@ -378,6 +471,7 @@
 
       </div>
       <!-- end tab-tts -->
+
 
     </main>
 

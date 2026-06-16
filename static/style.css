@@ -549,6 +549,46 @@ body {
   font-weight: 600;
 }
 
+/* ===== TTS MODE SELECTOR ===== */
+.tts-mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+.tts-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.tts-mode-btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+}
+
+.tts-mode-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  box-shadow: 0 4px 16px rgba(139,92,246,0.35);
+}
+
 /* ===== TTS ENGINE SELECTOR ===== */
 .tts-engine-selector {
   display: flex;
@@ -659,4 +699,53 @@ body {
   flex-direction: row;
   padding: 10px 16px;
   gap: 8px;
+}
+
+/* ===== VOICE CLONE PANEL ===== */
+.vc-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.vc-drop-zone {
+  border: 2px dashed rgba(139,92,246,0.35);
+  border-radius: var(--radius-sm);
+  padding: 24px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(139,92,246,0.04);
+}
+.vc-drop-zone:hover, .vc-drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(139,92,246,0.10);
+}
+.vc-upload-icon { font-size: 30px; margin-bottom: 8px; }
+
+.vc-preview-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: rgba(139,92,246,0.06);
+  border: 1px solid rgba(139,92,246,0.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  animation: fadeIn 0.25s ease;
+}
+.vc-preview-wrapper audio {
+  flex: 1;
+  min-width: 200px;
+  height: 36px;
+  accent-color: var(--accent);
+}
+.vc-file-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
