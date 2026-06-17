@@ -18,6 +18,7 @@ build/
 # =============================================
 venv/
 venv_gpu/
+venv_musetalk/
 env/
 .env_venv/
 .venv/
@@ -59,6 +60,7 @@ wav2lip/
 video_retalking/
 codeformer_repo/
 gfpgan/
+musetalk/
 
 # =============================================
 # Media files (video, audio tạm thời)

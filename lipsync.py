@@ -71,6 +71,9 @@ def generate(
     output_dir: str = "outputs",
     use_gfpgan: bool = True,
     hq_audio_path: str = None,
+    face_det_batch_size: int = 32,   # GTX 1080 baseline; RTX 3060 preset đặt 64
+    wav2lip_batch_size: int = 128,   # GTX 1080 baseline; RTX 3060 preset đặt 256
+    enhance_every_n: int = 2,        # GTX 1080 baseline; RTX 3060 preset đặt 1
 ) -> str:
     """
     Lip sync video với audio bằng Wav2Lip, sau đó GFPGAN sharpen mặt.
@@ -95,32 +98,24 @@ def generate(
     env["OMP_NUM_THREADS"]      = str(MAX_CPU_CORES)
     env["MKL_NUM_THREADS"]      = str(MAX_CPU_CORES)
     env["OPENBLAS_NUM_THREADS"] = str(MAX_CPU_CORES)
-    env["NUMEXPR_NUM_THREADS"]  = str(MAX_CPU_CORES)
-    env["TORCH_NUM_THREADS"]    = str(MAX_CPU_CORES)
-
     if device == "cuda":
-        # GTX 1050 Ti: 4GB VRAM
-        # Wav2Lip model chỉ ~50MB → batch lớn không OOM
-        # face_det_batch_size 16 → detect 16 frame/lần, nhanh 4x hơn
-        # wav2lip_batch_size 128 → 4GB VRAM dư sức, đó là default của paper gốc
         env["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
-        env["CUDA_VISIBLE_DEVICES"]     = "0"   # force GPU 0
+        env["CUDA_VISIBLE_DEVICES"]     = "0"
 
         cmd = [
             sys.executable,
             os.path.join(WAV2LIP_DIR, "inference.py"),
-            "--checkpoint_path", get_model_path(),  # tự chọn wav2lip.pth (sync) hoặc GAN (fallback)
+            "--checkpoint_path", get_model_path(),
             "--face",    os.path.abspath(video_path),
             "--audio",   os.path.abspath(audio_path),
             "--outfile",  output_path,
-            "--resize_factor",      "1",    # Full resolution
-            "--face_det_batch_size", "32",  # 32 frame/batch face detect
-            "--wav2lip_batch_size",  "128", # 128: default paper gốc, an toàn với 4GB VRAM
-            "--nosmooth",                    # Tắt smooth T=2 → loại bỏ lag 2 frame (~80ms)
-                                             # GFPGAN xử lý visual artifact sau, không cần smooth box
-            "--pads", "0", "20", "0", "0",  # Tăng pad dưới lên 20px: bao phủ toàn bộ cằm/môi
+            "--resize_factor",      "1",
+            "--face_det_batch_size", str(face_det_batch_size),
+            "--wav2lip_batch_size",  str(wav2lip_batch_size),
+            "--nosmooth",
+            "--pads", "0", "20", "0", "0",
         ]
-        print(f"[LipSync] GPU mode | face_batch:32 | wav2lip_batch:128 | smooth:T=2")
+        print(f"[LipSync] GPU mode | face_batch:{face_det_batch_size} | wav2lip_batch:{wav2lip_batch_size} | enhance_every_n:{enhance_every_n}")
 
     else:
         cmd = [
@@ -191,9 +186,9 @@ def generate(
     # ── Face Enhancement: CodeFormer (tốt nhất) → GFPGAN (fallback) → bỏ qua ───────────
     if use_gfpgan:
         if is_codeformer_available():
-            print("[LipSync] CodeFormer: bắt đầu enhance mặt (chất lượng cao)...")
+            print(f"[LipSync] CodeFormer: enhance mặt (every_n={enhance_every_n})...")
             try:
-                enhanced = enhance_video_codeformer(output_path, output_dir=output_dir)
+                enhanced = enhance_video_codeformer(output_path, output_dir=output_dir, enhance_every_n=enhance_every_n)
                 if enhanced != output_path:
                     os.remove(output_path)
                     print(f"[LipSync] CodeFormer xong: {enhanced}")

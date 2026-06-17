@@ -54,6 +54,8 @@ def generate_vrt(
     audio_path: str,
     output_dir: str = "outputs",
     hq_audio_path: str = None,
+    lnet_batch_size: int = 4,
+    enhance_every_n: int = 2,
 ) -> str:
     """
     Run VideoReTalking lip sync.
@@ -87,23 +89,33 @@ def generate_vrt(
         "--face",    os.path.abspath(video_path),
         "--audio",   os.path.abspath(audio_path),
         "--outfile", output_path,
+        "--re_preprocess",   # luôn tính lại landmarks/coeffs (tránh dùng cache BGR cũ)
     ]
 
-    # For 4GB VRAM (GTX 1050 Ti): LNet_batch_size=1 required - ENet needs ~1GB/item
+    # For RTX 3060 12GB: batch size can be larger
     if device == "cuda":
-        cmd += ["--LNet_batch_size", "1"]
+        cmd += ["--LNet_batch_size", str(lnet_batch_size)]
     else:
         cmd += ["--LNet_batch_size", "1"]
 
-    print(f"[VRT] Running VideoReTalking ({device.upper()})...")
-    print(f"[VRT] Command: {' '.join(cmd[-4:])}")
+    print(f"[VRT] Running VideoReTalking ({device.upper()}) | LNet_batch:{lnet_batch_size} | enhance_every_n:{enhance_every_n}...")
 
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+
+    # Thêm VRT internal module paths vào PYTHONPATH để subprocess tìm được
+    # face_parse, face3d, GPEN, v.v. là local packages không có trên PyPI
+    extra_paths = [
+        VRT_DIR,
+        os.path.join(VRT_DIR, "third_part"),
+        os.path.join(VRT_DIR, "third_part", "GPEN"),
+    ]
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(extra_paths + ([existing] if existing else []))
+
     if device == "cuda":
         env["CUDA_VISIBLE_DEVICES"] = "0"
-        # expandable_segments reduces fragmentation for 4GB cards
-        env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:128"
+        env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:512"
 
     proc = subprocess.run(
         cmd,
@@ -130,8 +142,8 @@ def generate_vrt(
         cf_result = enhance_video_codeformer(
             input_path=output_path,
             output_dir=os.path.dirname(output_path),
-            fidelity_weight=0.7,   # 0=max restoration, 1=max identity
-            enhance_every_n=1,     # enhance every frame for best quality
+            fidelity_weight=0.7,
+            enhance_every_n=enhance_every_n,
         )
         if cf_result and os.path.exists(cf_result) and cf_result != output_path:
             os.remove(output_path)

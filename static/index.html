@@ -204,11 +204,42 @@
               <span class="engine-name">VideoReTalking</span>
               <span class="engine-badge" id="vrt-status-badge">Kiểm tra...</span>
             </button>
+            <button class="engine-btn" id="ls-engine-btn-musetalk"
+                    onclick="selectLsEngine('musetalk')" type="button">
+              <span class="engine-icon">🚀</span>
+              <span class="engine-name">MuseTalk</span>
+              <span class="engine-badge" id="mt-status-badge">Kiểm tra...</span>
+            </button>
           </div>
           <p id="ls-engine-note" class="ls-tts-mode-label">
             ⚡ Wav2Lip – Nhanh, ổn định, phù hợp cho mọi video
           </p>
         </div>
+
+        <!-- GPU Card Selector -->
+        <div class="action-section ls-engine-section" id="gpu-preset-section">
+          <div class="ls-engine-label">
+            <span>🖥️</span> GPU đang dùng
+          </div>
+          <div class="tts-engine-selector ls-engine-selector gpu-preset-selector">
+            <button class="engine-btn" id="gpu-btn-gtx1080"
+                    onclick="selectGpuPreset('gtx1080')" type="button">
+              <span class="engine-icon">🟡</span>
+              <span class="engine-name">GTX 1080</span>
+              <span class="engine-badge quota">8GB</span>
+            </button>
+            <button class="engine-btn active" id="gpu-btn-rtx3060"
+                    onclick="selectGpuPreset('rtx3060')" type="button">
+              <span class="engine-icon">🟢</span>
+              <span class="engine-name">RTX 3060</span>
+              <span class="engine-badge free">12GB</span>
+            </button>
+          </div>
+          <p id="gpu-preset-note" class="ls-tts-mode-label">
+            🟢 RTX 3060 – face_batch:64 | wav2lip:256 | CodeFormer mỗi frame | VRT batch:8
+          </p>
+        </div>
+
 
         <!-- Generate Button -->
         <div class="action-section">
@@ -218,6 +249,7 @@
           </button>
           <p class="action-note">GPU mode: ~1-3 phút với video 10s</p>
         </div>
+
 
         <!-- Progress Section -->
         <div id="progress-section" class="progress-section hidden">

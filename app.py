@@ -20,10 +20,30 @@ from tts import text_to_audio, estimate_duration, gemini_tts_direct, convert_for
 from video_utils import loop_video, check_ffmpeg, get_duration
 from lipsync import generate, is_wav2lip_available
 from videoretalking import generate_vrt, is_videoretalking_available
+from musetalk_wrapper import generate_musetalk, is_musetalk_available
+from codeformer_enhance import enhance_video_codeformer, is_codeformer_available
 
 
 # === Trạng thái xử lý job ===
 jobs: dict = {}
+
+# === GPU Model Presets ===
+GPU_PRESETS = {
+    "gtx1080": {
+        "face_det_batch_size": 32,
+        "wav2lip_batch_size":  128,
+        "enhance_every_n":    2,
+        "vrt_lnet_batch":     2,
+        "label": "GTX 1080 (8GB)",
+    },
+    "rtx3060": {
+        "face_det_batch_size": 64,
+        "wav2lip_batch_size":  256,
+        "enhance_every_n":    1,
+        "vrt_lnet_batch":     8,
+        "label": "RTX 3060 (12GB)",
+    },
+}
 
 
 @asynccontextmanager
@@ -59,6 +79,7 @@ async def system_status():
         "ffmpeg": check_ffmpeg(),
         "wav2lip": is_wav2lip_available(),
         "videoretalking": is_videoretalking_available(),
+        "musetalk": is_musetalk_available(),
         "ready": check_ffmpeg() and is_wav2lip_available()
     }
 
@@ -113,6 +134,7 @@ async def generate_lipsync(
     gemini_api_key: str = Form(""),
     gemini_voice: str = Form(""),
     edge_voice: str = Form("vi-VN-HoaiMyNeural"),
+    gpu_preset: str = Form("rtx3060"),       # "gtx1080" | "rtx3060"
 ):
     """
     Main endpoint: Upload video + text -> tra ve job_id de theo doi tien trinh.
@@ -145,12 +167,16 @@ async def generate_lipsync(
         "error": None
     }
 
+    # Lay GPU preset
+    preset = GPU_PRESETS.get(gpu_preset.strip(), GPU_PRESETS["rtx3060"])
+
     # Chay xu ly o background
     background_tasks.add_task(
         process_job, job_id, video_path, text,
         tts_engine.strip(), lipsync_engine.strip(),
         gemini_api_key.strip(),
-        gemini_voice.strip(), edge_voice.strip()
+        gemini_voice.strip(), edge_voice.strip(),
+        preset,
     )
 
     return {"job_id": job_id}
@@ -185,8 +211,15 @@ async def process_job(job_id: str, video_path: str, text: str,
                       tts_engine: str = "gtts",
                       lipsync_engine: str = "wav2lip",
                       gemini_api_key: str = "", gemini_voice: str = "",
-                      edge_voice: str = "vi-VN-HoaiMyNeural"):
+                      edge_voice: str = "vi-VN-HoaiMyNeural",
+                      preset: dict = None):
     """Background task: TTS -> Loop -> LipSync (Wav2Lip or VideoReTalking)."""
+    if preset is None:
+        preset = GPU_PRESETS["rtx3060"]
+    face_det  = preset["face_det_batch_size"]
+    w2l_batch = preset["wav2lip_batch_size"]
+    every_n   = preset["enhance_every_n"]
+    vrt_batch = preset["vrt_lnet_batch"]
     hq_audio_path = None
     try:
         # Bước 1: TTS
@@ -212,18 +245,36 @@ async def process_job(job_id: str, video_path: str, text: str,
         looped_video_path = await asyncio.to_thread(loop_video, video_path, audio_duration)
 
         # Buoc 3: Lip Sync
-        engine_label = "VideoReTalking" if lipsync_engine == "videoretalking" else "Wav2Lip"
+        engine_label = {
+            "videoretalking": "VideoReTalking",
+            "musetalk": "MuseTalk",
+        }.get(lipsync_engine, "Wav2Lip")
         jobs[job_id].update({"step": f"Dang lip sync ({engine_label} - GPU)...", "progress": 50})
 
         if lipsync_engine == "videoretalking":
             output_path = await asyncio.to_thread(
                 generate_vrt, looped_video_path, audio_path,
-                "outputs", hq_audio_path
+                "outputs", hq_audio_path,
+                vrt_batch, every_n,
             )
+        elif lipsync_engine == "musetalk":
+            mt_batch = 8 if preset.get("label", "").startswith("RTX") else 4
+            output_path = await asyncio.to_thread(
+                generate_musetalk, looped_video_path, audio_path,
+                "outputs", mt_batch, True,
+            )
+            # CodeFormer enhancement sau MuseTalk
+            # fidelity=0.4: AI tai tao chi tiet rang/moi ro hon (thap = enhance manh)
+            if is_codeformer_available():
+                jobs[job_id].update({"step": "✨ Đang enhance khuôn mặt (CodeFormer)...", "progress": 85})
+                output_path = await asyncio.to_thread(
+                    enhance_video_codeformer, output_path, "outputs", 0.4, every_n,
+                )
         else:
             output_path = await asyncio.to_thread(
                 generate, looped_video_path, audio_path,
-                "outputs", True, hq_audio_path
+                "outputs", True, hq_audio_path,
+                face_det, w2l_batch, every_n,
             )
 
         # Xong!

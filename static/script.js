@@ -2,8 +2,14 @@
 let selectedVideo = null;
 let currentJobId = null;
 let pollInterval = null;
-let currentEngine = 'edge';       // TTS engine: 'edge' | 'gemini' | 'gtts'
-let currentLsEngine = 'wav2lip'; // Lip sync engine: 'wav2lip' | 'videoretalking'
+let currentEngine = 'edge';        // TTS engine: 'edge' | 'gemini' | 'gtts'
+let currentLsEngine = 'wav2lip';  // Lip sync engine: 'wav2lip' | 'videoretalking' | 'musetalk'
+let currentGpuPreset = 'rtx3060'; // GPU preset: 'gtx1080' | 'rtx3060'
+
+const GPU_PRESET_INFO = {
+  gtx1080: '🟡 GTX 1080 – face_batch:32 | wav2lip:128 | CodeFormer mỗi 2 frame | VRT batch:2',
+  rtx3060: '🟢 RTX 3060 – face_batch:64 | wav2lip:256 | CodeFormer mỗi frame | VRT batch:8',
+};
 
 // ===== SYSTEM STATUS CHECK =====
 async function checkSystemStatus() {
@@ -36,11 +42,32 @@ async function checkSystemStatus() {
         vrtBadge.className = 'engine-badge warn';
       }
     }
+    // Update MuseTalk badge
+    const mtBadge = document.getElementById('mt-status-badge');
+    if (mtBadge) {
+      if (data.musetalk) {
+        mtBadge.textContent = 'Real-time';
+        mtBadge.className = 'engine-badge free';
+      } else {
+        mtBadge.textContent = 'Cần setup';
+        mtBadge.className = 'engine-badge warn';
+      }
+    }
   } catch {
     const badge = document.getElementById('system-status');
     badge.className = 'status-badge status-error';
     document.getElementById('status-text').textContent = '❌ Server chưa chạy';
   }
+}
+
+// ===== GPU PRESET SELECTOR =====
+function selectGpuPreset(preset) {
+  currentGpuPreset = preset;
+  document.querySelectorAll('.gpu-preset-selector .engine-btn').forEach(btn => btn.classList.remove('active'));
+  const btn = document.getElementById(`gpu-btn-${preset}`);
+  if (btn) btn.classList.add('active');
+  const note = document.getElementById('gpu-preset-note');
+  if (note) note.textContent = GPU_PRESET_INFO[preset] || '';
 }
 
 // ===== LIP SYNC ENGINE SELECTOR =====
@@ -53,6 +80,8 @@ function selectLsEngine(engine) {
   const note = document.getElementById('ls-engine-note');
   if (engine === 'videoretalking') {
     note.textContent = '✨ VideoReTalking – Chất lượng cao hơn, xử lý toàn bộ vùng mặt (cần setup models ~2GB)';
+  } else if (engine === 'musetalk') {
+    note.textContent = '🚀 MuseTalk – Real-time, cực nhanh (~3-5 phút cho 2 phút video), chất lượng rất cao';
   } else {
     note.textContent = '⚡ Wav2Lip – Nhanh, ổn định, phù hợp cho mọi video';
   }
@@ -131,6 +160,7 @@ async function startGenerate() {
     formData.append('text', text);
     formData.append('tts_engine', currentEngine);
     formData.append('lipsync_engine', currentLsEngine);
+    formData.append('gpu_preset', currentGpuPreset);
 
     if (currentEngine === 'gemini') {
       const lsApiKey = document.getElementById('ls-api-key').value.trim();

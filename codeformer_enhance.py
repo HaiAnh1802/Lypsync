@@ -126,21 +126,33 @@ def _load_model_and_helper():
 
     _reg_module.Registry.register = _safe_register
 
-    # Import arch (sau khi patch registry)
-    try:
-        from basicsr.archs.codeformer_arch import CodeFormer as _cf  # noqa
-    except (ImportError, Exception):
-        import importlib.util
-        arch_path = os.path.join(basicsr_arch_dir, "codeformer_arch.py")
-        if os.path.exists(arch_path):
-            spec = importlib.util.spec_from_file_location("basicsr.archs.codeformer_arch", arch_path)
-            mod  = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+    # Force-load arch từ file (bỏ qua Python module cache)
+    # Nếu basicsr.archs.codeformer_arch đã được import trước đó (do GFPGAN/VRT),
+    # decorator @ARCH_REGISTRY.register() không chạy lại → CodeFormer không có trong registry
+    # Fix: luôn exec_module với tên unique, rồi manually add vào registry
+    import importlib.util, sys as _sys
+
+    arch_path = os.path.join(basicsr_arch_dir, "codeformer_arch.py")
+    if not os.path.exists(arch_path):
+        raise RuntimeError(f"Không tìm thấy {arch_path}. Chạy setup CodeFormer trước.")
+
+    _mod_name = "_cf_arch_forced"
+    spec = importlib.util.spec_from_file_location(_mod_name, arch_path)
+    mod  = importlib.util.module_from_spec(spec)
+    _sys.modules[_mod_name] = mod
+    spec.loader.exec_module(mod)
+    _CodeFormer_cls = mod.CodeFormer
+
+    # Đảm bảo có trong ARCH_REGISTRY dù tên gì
+    if "CodeFormer" not in ARCH_REGISTRY._obj_map:
+        ARCH_REGISTRY._obj_map["CodeFormer"] = _CodeFormer_cls
+    _cls = ARCH_REGISTRY._obj_map["CodeFormer"]
+    print(f"[CodeFormer] Arch loaded: {_cls.__name__}")
 
     device = _detect_device()
     print("[CodeFormer] Loading model (first time ~10s, then cached)...")
 
-    net = ARCH_REGISTRY.get("CodeFormer")(
+    net = _cls(
         dim_embd=512,
         codebook_size=1024,
         n_head=8,
