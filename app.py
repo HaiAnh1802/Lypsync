@@ -99,7 +99,7 @@ async def tts_voice_clone(
     # Khởi tạo job
     jobs[job_id] = {
         "status": "processing",
-        "step": "🎤 Đang clone giọng (lần đầu có thể mất 1-2 phút để tải model)...",
+        "step": "🎤 Đang chuẩn bị clone giọng...",
         "progress": 10,
         "output": None,
         "audio_output": None,
@@ -114,7 +114,10 @@ async def tts_voice_clone(
 async def _run_tts_vc_job(job_id: str, text: str, ref_path: str):
     """Background task: clone giọng và tạo audio."""
     try:
-        jobs[job_id].update({"step": "📥 Đang tải model F5-TTS (chỉ lần đầu)...", "progress": 20})
+        from voice_clone import LOCAL_MODEL_FILE
+        model_ready = LOCAL_MODEL_FILE.exists() and LOCAL_MODEL_FILE.stat().st_size > 1_000_000_000
+        step_msg = "🎤 Đang khởi tạo engine Voice Clone..." if model_ready else "📥 Đang tải model F5-TTS (đầu tiên ~1.3GB)..."
+        jobs[job_id].update({"step": step_msg, "progress": 20})
         _, hq_path = await asyncio.to_thread(
             clone_voice_for_pipeline, text, ref_path
         )

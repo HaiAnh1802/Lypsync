@@ -788,7 +788,7 @@ async function generateTtsVoiceClone() {
 
     btnText.textContent = 'Đang clone giọng...';
     if (statusEl) {
-      statusEl.textContent = '⏳ Đang clone giọng – lần đầu có thể mất 1-2 phút để tải model...';
+      statusEl.textContent = '⏳ Đang gửi yêu cầu lên server...';
       statusEl.className = 'ls-tts-mode-label';
     }
 
