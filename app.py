@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from tts import text_to_audio, estimate_duration, gemini_tts_direct, convert_for_lipsync, gemini_tts_for_pipeline, edge_tts_for_pipeline
+from voice_clone import xtts_clone_direct, xtts_clone_for_pipeline, is_xtts_available
 from video_utils import loop_video, check_ffmpeg, get_duration
 from lipsync import generate, is_wav2lip_available
 from videoretalking import generate_vrt, is_videoretalking_available
@@ -80,6 +81,7 @@ async def system_status():
         "wav2lip": is_wav2lip_available(),
         "videoretalking": is_videoretalking_available(),
         "musetalk": is_musetalk_available(),
+        "xtts": is_xtts_available(),
         "ready": check_ffmpeg() and is_wav2lip_available()
     }
 
@@ -124,17 +126,65 @@ async def tts_generate(
     )
 
 
+@app.post("/api/voice-clone-tts")
+async def voice_clone_tts(
+    background_tasks: BackgroundTasks,
+    audio_sample: UploadFile = File(...),
+    text: str = Form(...),
+    language: str = Form("vi"),
+):
+    """
+    Tạo giọng đọc clone theo giọng mẫu upload (XTTS v2, free, local).
+    Trả về file WAV để preview trên browser.
+    """
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Text không được để trống")
+    if not is_xtts_available():
+        raise HTTPException(
+            status_code=400,
+            detail="XTTS v2 model chưa được download! Chạy download_xtts_model.bat trước."
+        )
+
+    # Lưu file audio mẫu tạm
+    uid = uuid.uuid4().hex[:8]
+    sample_ext  = Path(audio_sample.filename).suffix or ".wav"
+    sample_path = f"temp/voice_sample_{uid}{sample_ext}"
+    os.makedirs("temp", exist_ok=True)
+    with open(sample_path, "wb") as f:
+        shutil.copyfileobj(audio_sample.file, f)
+
+    try:
+        audio_path = await asyncio.to_thread(
+            xtts_clone_direct, text, sample_path, "temp", language
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Voice clone lỗi: {str(e)}")
+    finally:
+        # Xóa file mẫu tạm
+        if os.path.exists(sample_path):
+            os.remove(sample_path)
+
+    background_tasks.add_task(os.remove, audio_path)
+    return FileResponse(
+        audio_path,
+        media_type="audio/wav",
+        filename="voice_clone_preview.wav",
+    )
+
+
 @app.post("/api/generate")
 async def generate_lipsync(
     background_tasks: BackgroundTasks,
     video: UploadFile = File(...),
     text: str = Form(...),
-    tts_engine: str = Form("gtts"),           # "gemini" | "edge" | "gtts"
+    tts_engine: str = Form("gtts"),           # "gemini" | "edge" | "gtts" | "xtts"
     lipsync_engine: str = Form("wav2lip"),    # "wav2lip" | "videoretalking"
     gemini_api_key: str = Form(""),
     gemini_voice: str = Form(""),
     edge_voice: str = Form("vi-VN-HoaiMyNeural"),
     gpu_preset: str = Form("rtx3060"),       # "gtx1080" | "rtx3060"
+    voice_sample: UploadFile = File(None),   # Giọng mẫu cho XTTS
+    xtts_language: str = Form("vi"),         # Ngôn ngữ XTTS
 ):
     """
     Main endpoint: Upload video + text -> tra ve job_id de theo doi tien trinh.
@@ -158,6 +208,14 @@ async def generate_lipsync(
     with open(video_path, "wb") as f:
         shutil.copyfileobj(video.file, f)
 
+    # Luu voice sample (neu co) cho XTTS
+    voice_sample_path = None
+    if voice_sample and voice_sample.filename:
+        sample_ext = Path(voice_sample.filename).suffix or ".wav"
+        voice_sample_path = f"uploads/{job_id}_voice_sample{sample_ext}"
+        with open(voice_sample_path, "wb") as f:
+            shutil.copyfileobj(voice_sample.file, f)
+
     # Khoi tao job
     jobs[job_id] = {
         "status": "queued",
@@ -177,6 +235,8 @@ async def generate_lipsync(
         gemini_api_key.strip(),
         gemini_voice.strip(), edge_voice.strip(),
         preset,
+        voice_sample_path,
+        xtts_language.strip(),
     )
 
     return {"job_id": job_id}
@@ -212,7 +272,9 @@ async def process_job(job_id: str, video_path: str, text: str,
                       lipsync_engine: str = "wav2lip",
                       gemini_api_key: str = "", gemini_voice: str = "",
                       edge_voice: str = "vi-VN-HoaiMyNeural",
-                      preset: dict = None):
+                      preset: dict = None,
+                      voice_sample_path: str = None,
+                      xtts_language: str = "vi"):
     """Background task: TTS -> Loop -> LipSync (Wav2Lip or VideoReTalking)."""
     if preset is None:
         preset = GPU_PRESETS["rtx3060"]
@@ -223,7 +285,12 @@ async def process_job(job_id: str, video_path: str, text: str,
     hq_audio_path = None
     try:
         # Bước 1: TTS
-        if tts_engine == "gemini" and gemini_api_key:
+        if tts_engine == "xtts" and voice_sample_path:
+            jobs[job_id].update({"status": "processing", "step": "🎙️ Đang clone giọng (XTTS v2)...", "progress": 15})
+            audio_path, hq_audio_path = await asyncio.to_thread(
+                xtts_clone_for_pipeline, text, voice_sample_path, "temp", xtts_language
+            )
+        elif tts_engine == "gemini" and gemini_api_key:
             voice_label = gemini_voice or "Kore"
             jobs[job_id].update({"status": "processing", "step": f"🎤 Đang tạo giọng đọc Gemini ({voice_label})...", "progress": 15})
             audio_path, hq_audio_path = await asyncio.to_thread(
@@ -290,6 +357,8 @@ async def process_job(job_id: str, video_path: str, text: str,
         tmp_files = [audio_path, looped_video_path]
         if hq_audio_path:
             tmp_files.append(hq_audio_path)
+        if voice_sample_path:
+            tmp_files.append(voice_sample_path)
         for f in tmp_files:
             if f and os.path.exists(f):
                 os.remove(f)

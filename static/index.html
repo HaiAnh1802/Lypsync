@@ -52,6 +52,9 @@
         <button class="tab-btn" id="tab-btn-tts" onclick="switchTab('tts')">
           <span>🎙️</span> TTS Gemini
         </button>
+        <button class="tab-btn" id="tab-btn-clone" onclick="switchTab('clone')">
+          <span>🔊</span> Voice Clone
+        </button>
       </div>
 
       <!-- ===== TAB: LIP SYNC ===== -->
@@ -111,6 +114,11 @@
                   <span class="engine-icon">✨</span>
                   <span class="engine-name">Gemini TTS</span>
                   <span class="engine-badge quota">10/ngày</span>
+                </button>
+                <button class="engine-btn" id="engine-btn-xtts" onclick="selectEngine('xtts')" type="button">
+                  <span class="engine-icon">🔊</span>
+                  <span class="engine-name">Voice Clone</span>
+                  <span class="engine-badge free" id="xtts-ls-badge">Kiểm tra...</span>
                 </button>
                 <button class="engine-btn" id="engine-btn-gtts" onclick="selectEngine('gtts')" type="button">
                   <span class="engine-icon">💬</span>
@@ -180,6 +188,29 @@
               <!-- Panel: gTTS -->
               <div id="panel-gtts" class="engine-panel hidden">
                 <p class="ls-tts-mode-label">ℹ️ gTTS sử dụng Google Translate TTS – free nhưng giọng có thể không tự nhiên</p>
+              </div>
+
+              <!-- Panel: Voice Clone (XTTS) -->
+              <div id="panel-xtts" class="engine-panel hidden">
+                <div class="voice-clone-upload-area">
+                  <label class="tts-label">🎤 Upload giọng mẫu của bạn</label>
+                  <div
+                    class="upload-zone clone-drop-zone"
+                    id="ls-clone-drop-zone"
+                    onclick="document.getElementById('ls-clone-input').click()"
+                  >
+                    <input type="file" id="ls-clone-input" accept="audio/*" hidden />
+                    <div class="upload-icon">🎙️</div>
+                    <p class="upload-label">Click hoặc kéo thả audio vào đây</p>
+                    <p class="upload-hint">WAV, MP3, OGG, M4A – tốt nhất 6–30 giây, giọng sạch</p>
+                  </div>
+                  <div id="ls-clone-preview-wrapper" class="clone-preview-wrapper hidden">
+                    <div class="clone-file-info" id="ls-clone-file-info"></div>
+                    <audio id="ls-clone-audio" controls class="clone-audio-player"></audio>
+                    <button class="reset-btn" onclick="resetLsClone()" type="button">✕ Chọn lại</button>
+                  </div>
+                </div>
+                <p class="ls-tts-mode-label" id="ls-xtts-status">⏳ Đang kiểm tra XTTS model...</p>
               </div>
 
             </div>
@@ -410,6 +441,100 @@
 
       </div>
       <!-- end tab-tts -->
+
+      <!-- ===== TAB: VOICE CLONE ===== -->
+      <div id="tab-clone" class="tab-content hidden">
+
+        <div class="clone-tab-grid">
+          <!-- Upload giong mau -->
+          <div class="tts-field">
+            <label class="tts-label">🎤 Bước 1 – Upload giọng mẫu (6–30 giây)</label>
+            <div
+              class="upload-zone clone-drop-zone"
+              id="clone-drop-zone"
+              onclick="document.getElementById('clone-audio-input').click()"
+            >
+              <input type="file" id="clone-audio-input" accept="audio/*" hidden />
+              <div class="upload-icon">🎙️</div>
+              <p class="upload-label">Click hoặc kéo thả audio vào đây</p>
+              <p class="upload-hint">WAV, MP3, OGG, M4A – giọng sạch, không tiếng ồn</p>
+            </div>
+            <div id="clone-preview-wrapper" class="clone-preview-wrapper hidden">
+              <div class="clone-file-info" id="clone-file-info"></div>
+              <audio id="clone-ref-audio" controls class="clone-audio-player"></audio>
+              <button class="reset-btn" onclick="resetCloneRef()" type="button">✕ Chọn lại</button>
+            </div>
+          </div>
+
+          <!-- Ngon ngu -->
+          <div class="tts-field">
+            <label class="tts-label">🌍 Bước 2 – Ngôn ngữ cần đọc</label>
+            <select id="clone-language" class="voice-select">
+              <option value="vi">🇻🇳 Tiếng Việt</option>
+              <option value="en">🇺🇸 English</option>
+              <option value="zh-cn">🇨🇳 Chinese</option>
+              <option value="ja">🇯🇵 Japanese</option>
+              <option value="ko">🇰🇷 Korean</option>
+              <option value="fr">🇫🇷 Français</option>
+              <option value="de">🇩🇪 Deutsch</option>
+              <option value="es">🇪🇸 Español</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Text Input -->
+        <div class="tts-field" style="margin-top: 20px;">
+          <label class="tts-label">📝 Bước 3 – Nội dung cần đọc</label>
+          <textarea
+            id="clone-text"
+            class="text-area"
+            rows="7"
+            placeholder="Nhập text bạn muốn đọc theo giọng mẫu...&#10;&#10;Ví dụ: Xin chào, đây là giọng được clone từ file audio bạn vừa upload."
+          ></textarea>
+          <div class="text-meta">
+            <span id="clone-char-count">0 ký tự</span>
+            <span id="clone-duration-est" class="duration-badge">~0s</span>
+          </div>
+        </div>
+
+        <!-- Status XTTS -->
+        <div id="clone-xtts-status" class="xtts-status-bar">
+          <span id="clone-xtts-icon">⏳</span>
+          <span id="clone-xtts-msg">Đang kiểm tra XTTS model...</span>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="action-section" style="margin-top: 24px;">
+          <button id="clone-btn" class="generate-btn tts-generate-btn" onclick="generateClone()">
+            <span class="btn-icon">🔊</span>
+            <span class="btn-text">Tạo giọng clone</span>
+          </button>
+          <p class="action-note" id="clone-note">XTTS v2 · Chạy local · ~5–15 giây</p>
+        </div>
+
+        <!-- Clone Result -->
+        <div id="clone-result" class="tts-result hidden">
+          <div class="tts-result-header">
+            <span>✅</span>
+            <h3>Voice Clone hoàn tất!</h3>
+            <span class="tts-voice-badge">XTTS v2</span>
+          </div>
+          <audio id="clone-audio" controls class="tts-audio-player"></audio>
+          <div class="result-actions" style="margin-top: 16px;">
+            <button class="download-btn" onclick="downloadClone()">⬇️ Download WAV</button>
+            <button class="reset-btn" onclick="resetClone()">🔄 Tạo lại</button>
+          </div>
+        </div>
+
+        <!-- Clone Error -->
+        <div id="clone-error" class="error-section hidden">
+          <span class="error-icon">❌</span>
+          <p id="clone-error-msg">Đã xảy ra lỗi</p>
+          <button class="reset-btn" onclick="resetClone()">Thử lại</button>
+        </div>
+
+      </div>
+      <!-- end tab-clone -->
 
     </main>
 

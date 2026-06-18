@@ -19,3 +19,5 @@ python-dotenv
 google-generativeai
 google-genai
 psutil
+coqui-tts>=0.24.0
+huggingface_hub>=0.23.0

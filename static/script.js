@@ -2,9 +2,11 @@
 let selectedVideo = null;
 let currentJobId = null;
 let pollInterval = null;
-let currentEngine = 'edge';        // TTS engine: 'edge' | 'gemini' | 'gtts'
+let currentEngine = 'edge';        // TTS engine: 'edge' | 'gemini' | 'gtts' | 'xtts'
 let currentLsEngine = 'wav2lip';  // Lip sync engine: 'wav2lip' | 'videoretalking' | 'musetalk'
 let currentGpuPreset = 'rtx3060'; // GPU preset: 'gtx1080' | 'rtx3060'
+let selectedLsVoiceSample = null; // File giong mau trong Lip Sync tab (XTTS)
+let xttsAvailable = false;        // XTTS model da download chua
 
 const GPU_PRESET_INFO = {
   gtx1080: '🟡 GTX 1080 – face_batch:32 | wav2lip:128 | CodeFormer mỗi 2 frame | VRT batch:2',
@@ -51,6 +53,44 @@ async function checkSystemStatus() {
       } else {
         mtBadge.textContent = 'Cần setup';
         mtBadge.className = 'engine-badge warn';
+      }
+    }
+    // Update XTTS badge
+    xttsAvailable = !!data.xtts;
+    const xttsBadge = document.getElementById('xtts-ls-badge');
+    if (xttsBadge) {
+      if (data.xtts) {
+        xttsBadge.textContent = 'Sẵn sàng';
+        xttsBadge.className = 'engine-badge free';
+      } else {
+        xttsBadge.textContent = 'Cần download';
+        xttsBadge.className = 'engine-badge warn';
+      }
+    }
+    // Update XTTS status in Lip Sync panel
+    const lsXttsStatus = document.getElementById('ls-xtts-status');
+    if (lsXttsStatus) {
+      if (data.xtts) {
+        lsXttsStatus.textContent = '✅ XTTS v2 sẵn sàng – Upload giọng mẫu và chạy Lip Sync';
+        lsXttsStatus.className = 'ls-tts-mode-label ls-tts-edge';
+      } else {
+        lsXttsStatus.textContent = '⚠️ Chưa có XTTS model – Chạy download_xtts_model.bat trước';
+        lsXttsStatus.className = 'ls-tts-mode-label';
+      }
+    }
+    // Update XTTS status in Clone tab
+    const cloneIcon = document.getElementById('clone-xtts-icon');
+    const cloneMsg  = document.getElementById('clone-xtts-msg');
+    const cloneBar  = document.getElementById('clone-xtts-status');
+    if (cloneIcon && cloneMsg) {
+      if (data.xtts) {
+        cloneIcon.textContent = '✅';
+        cloneMsg.textContent  = 'XTTS v2 sẵn sàng – Upload giọng mẫu và bắt đầu';
+        if (cloneBar) cloneBar.className = 'xtts-status-bar xtts-ready';
+      } else {
+        cloneIcon.textContent = '⚠️';
+        cloneMsg.textContent  = 'Chưa có XTTS model – Chạy download_xtts_model.bat để download (~2.7GB)';
+        if (cloneBar) cloneBar.className = 'xtts-status-bar xtts-warn';
       }
     }
   } catch {
@@ -170,6 +210,15 @@ async function startGenerate() {
     } else if (currentEngine === 'edge') {
       const edgeVoice = document.getElementById('edge-voice').value;
       formData.append('edge_voice', edgeVoice);
+    } else if (currentEngine === 'xtts') {
+      if (!selectedLsVoiceSample) {
+        alert('Vui lòng upload giọng mẫu trước khi tạo Lip Sync!');
+        document.getElementById('generate-btn').disabled = false;
+        document.getElementById('progress-section').classList.add('hidden');
+        return;
+      }
+      formData.append('voice_sample', selectedLsVoiceSample);
+      formData.append('xtts_language', 'vi');
     }
 
     const res = await fetch('/api/generate', { method: 'POST', body: formData });
@@ -403,13 +452,13 @@ function selectEngine(engine) {
   currentEngine = engine;
 
   // Update button styles
-  ['edge', 'gemini', 'gtts'].forEach(e => {
+  ['edge', 'gemini', 'gtts', 'xtts'].forEach(e => {
     const btn = document.getElementById(`engine-btn-${e}`);
     if (btn) btn.classList.toggle('active', e === engine);
   });
 
   // Show/hide panels
-  ['edge', 'gemini', 'gtts'].forEach(e => {
+  ['edge', 'gemini', 'gtts', 'xtts'].forEach(e => {
     const panel = document.getElementById(`panel-${e}`);
     if (panel) panel.classList.toggle('hidden', e !== engine);
   });
@@ -593,4 +642,156 @@ function resetTTS() {
   document.getElementById('tts-result').classList.add('hidden');
   document.getElementById('tts-error').classList.add('hidden');
   ttsAudioBlob = null;
+}
+
+// ===== VOICE CLONE TAB =====
+let selectedCloneRef  = null; // File giong mau (tab clone)
+let cloneAudioBlob    = null;
+
+// Upload giong mau (tab clone)
+const cloneAudioInput = document.getElementById('clone-audio-input');
+if (cloneAudioInput) {
+  cloneAudioInput.addEventListener('change', e => handleCloneRef(e.target.files[0]));
+}
+const cloneDropZone = document.getElementById('clone-drop-zone');
+if (cloneDropZone) {
+  cloneDropZone.addEventListener('dragover', e => { e.preventDefault(); cloneDropZone.classList.add('drag-over'); });
+  cloneDropZone.addEventListener('dragleave', () => cloneDropZone.classList.remove('drag-over'));
+  cloneDropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    cloneDropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('audio/')) handleCloneRef(file);
+  });
+}
+
+function handleCloneRef(file) {
+  if (!file) return;
+  selectedCloneRef = file;
+  const url = URL.createObjectURL(file);
+  const size = (file.size / 1024).toFixed(0);
+  document.getElementById('clone-file-info').textContent =
+    `🎤 ${file.name}  •  ${size}KB`;
+  document.getElementById('clone-ref-audio').src = url;
+  document.getElementById('clone-drop-zone').classList.add('hidden');
+  document.getElementById('clone-preview-wrapper').classList.remove('hidden');
+}
+
+function resetCloneRef() {
+  selectedCloneRef = null;
+  document.getElementById('clone-audio-input').value = '';
+  document.getElementById('clone-ref-audio').src = '';
+  document.getElementById('clone-drop-zone').classList.remove('hidden');
+  document.getElementById('clone-preview-wrapper').classList.add('hidden');
+}
+
+// Char counter cho clone tab
+const cloneTextInput = document.getElementById('clone-text');
+if (cloneTextInput) {
+  cloneTextInput.addEventListener('input', () => {
+    const text  = cloneTextInput.value;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const est   = Math.round(words / 2.67);
+    document.getElementById('clone-char-count').textContent = `${text.length} ký tự`;
+    document.getElementById('clone-duration-est').textContent = `~${est}s`;
+  });
+}
+
+async function generateClone() {
+  const text = cloneTextInput ? cloneTextInput.value.trim() : '';
+  if (!selectedCloneRef) { alert('Vui lòng upload giọng mẫu!'); return; }
+  if (!text)             { alert('Vui lòng nhập nội dung cần đọc!'); return; }
+  if (!xttsAvailable)   {
+    alert('XTTS model chưa có. Vui lòng chạy download_xtts_model.bat trước!');
+    return;
+  }
+
+  const language = document.getElementById('clone-language')?.value || 'vi';
+  const btn      = document.getElementById('clone-btn');
+  const btnText  = btn.querySelector('.btn-text');
+  btn.disabled = true;
+  btnText.textContent = 'Đang clone giọng...';
+
+  document.getElementById('clone-result').classList.add('hidden');
+  document.getElementById('clone-error').classList.add('hidden');
+
+  try {
+    const formData = new FormData();
+    formData.append('audio_sample', selectedCloneRef);
+    formData.append('text', text);
+    formData.append('language', language);
+
+    const res = await fetch('/api/voice-clone-tts', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Lỗi không xác định');
+    }
+
+    cloneAudioBlob = await res.blob();
+    const audioUrl = URL.createObjectURL(cloneAudioBlob);
+    document.getElementById('clone-audio').src = audioUrl;
+    document.getElementById('clone-result').classList.remove('hidden');
+
+  } catch (err) {
+    document.getElementById('clone-error-msg').textContent = err.message;
+    document.getElementById('clone-error').classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Tạo giọng clone';
+  }
+}
+
+function downloadClone() {
+  if (!cloneAudioBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(cloneAudioBlob);
+  a.download = 'voice_clone.wav';
+  a.click();
+}
+
+function resetClone() {
+  if (cloneTextInput) cloneTextInput.value = '';
+  document.getElementById('clone-char-count').textContent = '0 ký tự';
+  document.getElementById('clone-duration-est').textContent = '~0s';
+  document.getElementById('clone-audio').src = '';
+  document.getElementById('clone-result').classList.add('hidden');
+  document.getElementById('clone-error').classList.add('hidden');
+  cloneAudioBlob = null;
+}
+
+// ===== LIP SYNC TAB - XTTS VOICE SAMPLE UPLOAD =====
+const lsCloneInput = document.getElementById('ls-clone-input');
+if (lsCloneInput) {
+  lsCloneInput.addEventListener('change', e => handleLsClone(e.target.files[0]));
+}
+const lsCloneDropZone = document.getElementById('ls-clone-drop-zone');
+if (lsCloneDropZone) {
+  lsCloneDropZone.addEventListener('dragover', e => { e.preventDefault(); lsCloneDropZone.classList.add('drag-over'); });
+  lsCloneDropZone.addEventListener('dragleave', () => lsCloneDropZone.classList.remove('drag-over'));
+  lsCloneDropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    lsCloneDropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('audio/')) handleLsClone(file);
+  });
+}
+
+function handleLsClone(file) {
+  if (!file) return;
+  selectedLsVoiceSample = file;
+  const url  = URL.createObjectURL(file);
+  const size = (file.size / 1024).toFixed(0);
+  document.getElementById('ls-clone-file-info').textContent =
+    `🎤 ${file.name}  •  ${size}KB`;
+  document.getElementById('ls-clone-audio').src = url;
+  document.getElementById('ls-clone-drop-zone').classList.add('hidden');
+  document.getElementById('ls-clone-preview-wrapper').classList.remove('hidden');
+}
+
+function resetLsClone() {
+  selectedLsVoiceSample = null;
+  document.getElementById('ls-clone-input').value = '';
+  document.getElementById('ls-clone-audio').src = '';
+  document.getElementById('ls-clone-drop-zone').classList.remove('hidden');
+  document.getElementById('ls-clone-preview-wrapper').classList.add('hidden');
 }
